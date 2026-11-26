@@ -11,7 +11,11 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CameraRouteImport } from './routes/camera'
+import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
+import { Route as GaleriaRouteImport } from './routes/galeria'
 import { Route as PrepararRouteImport } from './routes/preparar'
+import { Route as GaleriaIndexRouteImport } from './routes/galeria.index'
+import { Route as GaleriaIdRouteImport } from './routes/galeria.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -23,39 +27,93 @@ const CameraRoute = CameraRouteImport.update({
   path: '/camera',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ConfiguracoesRoute = ConfiguracoesRouteImport.update({
+  id: '/configuracoes',
+  path: '/configuracoes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GaleriaRoute = GaleriaRouteImport.update({
+  id: '/galeria',
+  path: '/galeria',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PrepararRoute = PrepararRouteImport.update({
   id: '/preparar',
   path: '/preparar',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GaleriaIndexRoute = GaleriaIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => GaleriaRoute,
+} as any)
+const GaleriaIdRoute = GaleriaIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => GaleriaRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/camera': typeof CameraRoute
+  '/configuracoes': typeof ConfiguracoesRoute
+  '/galeria': typeof GaleriaRouteWithChildren
   '/preparar': typeof PrepararRoute
+  '/galeria/$id': typeof GaleriaIdRoute
+  '/galeria/': typeof GaleriaIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/camera': typeof CameraRoute
+  '/configuracoes': typeof ConfiguracoesRoute
   '/preparar': typeof PrepararRoute
+  '/galeria/$id': typeof GaleriaIdRoute
+  '/galeria': typeof GaleriaIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/camera': typeof CameraRoute
+  '/configuracoes': typeof ConfiguracoesRoute
+  '/galeria': typeof GaleriaRouteWithChildren
   '/preparar': typeof PrepararRoute
+  '/galeria/$id': typeof GaleriaIdRoute
+  '/galeria/': typeof GaleriaIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/camera' | '/preparar'
+  fullPaths:
+    | '/'
+    | '/camera'
+    | '/configuracoes'
+    | '/galeria'
+    | '/preparar'
+    | '/galeria/$id'
+    | '/galeria/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/camera' | '/preparar'
-  id: '__root__' | '/' | '/camera' | '/preparar'
+  to:
+    | '/'
+    | '/camera'
+    | '/configuracoes'
+    | '/preparar'
+    | '/galeria/$id'
+    | '/galeria'
+  id:
+    | '__root__'
+    | '/'
+    | '/camera'
+    | '/configuracoes'
+    | '/galeria'
+    | '/preparar'
+    | '/galeria/$id'
+    | '/galeria/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CameraRoute: typeof CameraRoute
+  ConfiguracoesRoute: typeof ConfiguracoesRoute
+  GaleriaRoute: typeof GaleriaRouteWithChildren
   PrepararRoute: typeof PrepararRoute
 }
 
@@ -75,6 +133,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CameraRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/configuracoes': {
+      id: '/configuracoes'
+      path: '/configuracoes'
+      fullPath: '/configuracoes'
+      preLoaderRoute: typeof ConfiguracoesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/galeria': {
+      id: '/galeria'
+      path: '/galeria'
+      fullPath: '/galeria'
+      preLoaderRoute: typeof GaleriaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/preparar': {
       id: '/preparar'
       path: '/preparar'
@@ -82,12 +154,41 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PrepararRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/galeria/': {
+      id: '/galeria/'
+      path: '/'
+      fullPath: '/galeria/'
+      preLoaderRoute: typeof GaleriaIndexRouteImport
+      parentRoute: typeof GaleriaRoute
+    }
+    '/galeria/$id': {
+      id: '/galeria/$id'
+      path: '/$id'
+      fullPath: '/galeria/$id'
+      preLoaderRoute: typeof GaleriaIdRouteImport
+      parentRoute: typeof GaleriaRoute
+    }
   }
 }
+
+interface GaleriaRouteChildren {
+  GaleriaIdRoute: typeof GaleriaIdRoute
+  GaleriaIndexRoute: typeof GaleriaIndexRoute
+}
+
+const GaleriaRouteChildren: GaleriaRouteChildren = {
+  GaleriaIdRoute: GaleriaIdRoute,
+  GaleriaIndexRoute: GaleriaIndexRoute,
+}
+
+const GaleriaRouteWithChildren =
+  GaleriaRoute._addFileChildren(GaleriaRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CameraRoute: CameraRoute,
+  ConfiguracoesRoute: ConfiguracoesRoute,
+  GaleriaRoute: GaleriaRouteWithChildren,
   PrepararRoute: PrepararRoute,
 }
 export const routeTree = rootRouteImport

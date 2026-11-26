@@ -121,12 +121,12 @@ function CameraPage() {
     await new Promise<void>((res) => { r.onstop = () => res(); r.stop(); });
     live.current.recording = false;
     const mime = r.mimeType || pickMime();
-    const blob = new Blob(chunks.current, { type: mime.split(";")[0] });
+    const blob = new Blob(chunks.current, { type: mime.split(";")[0] ?? "video/webm" });
     const s = settingsRef.current!;
     const a = { id: crypto.randomUUID(), type: s.activity, startedAt: startedAt.current, finishedAt: now, distance: snap.distance, duration: snap.elapsed,
       avgPace: snap.avgPace, avgSpeed: snap.avgSpeed, maxSpeed: snap.maxSpeed, elevationGain: snap.elevationGain, mime: blob.type, format, thumb, records: records.current };
     await saveActivity(a, blob);
-    if (s.cloudSync) syncActivity(a).then((ok) => ok && updateActivity({ ...a, synced: true }));
+    if (s.cloudSync) syncActivity(a).then((ok) => { if (ok) void updateActivity({ ...a, synced: true }); });
     toast.success("Atividade salva na galeria");
     nav({ to: "/galeria/$id", params: { id: a.id } });
   };

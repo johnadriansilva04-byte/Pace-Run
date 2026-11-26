@@ -1,8 +1,8 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Activity } from "./gallery";
 // Optional cloud sync. Configure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY (e.g. in Vercel env vars).
-const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const key = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+const url = import.meta.env['VITE_SUPABASE_URL'] as string | undefined;
+const key = import.meta.env['VITE_SUPABASE_ANON_KEY'] as string | undefined;
 export const supabase: SupabaseClient | null = url && key ? createClient(url, key) : null;
 
 export async function syncActivity(a: Activity): Promise<boolean> {
