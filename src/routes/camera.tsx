@@ -1,0 +1,164 @@
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useEffect, useRef, useState } from "react";
+import { ArrowLeft, SwitchCamera, Crop, Pause, Play, Square } from "lucide-react";
+import { toast } from "sonner";
+import { drawCover, drawHud } from "@/components/pace/hud";
+import { TelemetryEngine, gpsStateFromAccuracy, type GpsState } from "@/lib/telemetry";
+import { frameSize, loadSettings, type Settings } from "@/lib/settings";
+import { pickMime, saveActivity, updateActivity, type RecordPoint } from "@/lib/gallery";
+import { syncActivity } from "@/lib/supabase";
+
+export const Route = createFileRoute("/camera")({
+  head: () => ({ meta: [
+    { title: "Câmera esportiva — PACE CAM" }, { name: "description", content: "Grave com o painel de telemetria ao vivo." },
+    { property: "og:title", content: "Câmera esportiva — PACE CAM" }, { property: "og:description", content: "Painel ao vivo gravado no vídeo." },
+    { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" },
+  ] }),
+  component: CameraPage,
+});
+
+const FORMATS: Settings["format"][] = ["9:16", "16:9", "1:1"];
+
+function CameraPage() {
+  const nav = useNavigate();
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const engine = useRef(new TelemetryEngine());
+  const live = useRef({ gps: "searching" as GpsState, battery: null as number | null, recording: false, paused: false });
+  const settingsRef = useRef<Settings | null>(null);
+  const audioStream = useRef<MediaStream | null>(null);
+  const videoStream = useRef<MediaStream | null>(null);
+  const recorder = useRef<MediaRecorder | null>(null);
+  const chunks = useRef<Blob[]>([]);
+  const records = useRef<RecordPoint[]>([]);
+  const startedAt = useRef(0);
+  const [facing, setFacing] = useState<"environment" | "user">("environment");
+  const [format, setFormat] = useState<Settings["format"]>("9:16");
+  const [state, setState] = useState<"idle" | "rec" | "paused" | "saving">("idle");
+  const [camErr, setCamErr] = useState("");
+
+  // settings + mic + gps + battery + wake lock (once)
+  useEffect(() => {
+    const s = loadSettings(); settingsRef.current = s; setFormat(s.format);
+    if (s.recordAudio) navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: true } }).then((a) => (audioStream.current = a)).catch(() => {});
+    const gid = navigator.geolocation?.watchPosition(
+      (p) => {
+        live.current.gps = gpsStateFromAccuracy(p.coords.accuracy);
+        engine.current.addFix({ lat: p.coords.latitude, lon: p.coords.longitude, alt: p.coords.altitude, accuracy: p.coords.accuracy, speed: p.coords.speed, t: p.timestamp });
+      },
+      (e) => { live.current.gps = e.code === 1 ? "denied" : "searching"; },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 },
+    );
+    const nb = navigator as Navigator & { getBattery?: () => Promise<{ level: number; addEventListener: (e: string, f: () => void) => void }> };
+    nb.getBattery?.().then((b) => { live.current.battery = b.level; b.addEventListener("levelchange", () => (live.current.battery = b.level)); });
+    let lock: { release: () => Promise<void> } | null = null;
+    const wl = (navigator as Navigator & { wakeLock?: { request: (t: string) => Promise<{ release: () => Promise<void> }> } }).wakeLock;
+    wl?.request("screen").then((l) => (lock = l)).catch(() => {});
+    const sample = setInterval(() => {
+      if (!engine.current.running) return;
+      const sn = engine.current.snapshot(Date.now());
+      records.current.push({ elapsed: sn.elapsed, distance: sn.distance, pace: sn.pace, speed: sn.speed, elevation: sn.elevation, lat: sn.lat, lon: sn.lon, t: Date.now() });
+    }, 1000);
+    return () => {
+      if (gid != null) navigator.geolocation.clearWatch(gid);
+      clearInterval(sample); lock?.release().catch(() => {});
+      audioStream.current?.getTracks().forEach((t) => t.stop());
+      recorder.current?.state !== "inactive" && recorder.current?.stop();
+    };
+  }, []);
+
+  // camera stream (restarts on flip)
+  useEffect(() => {
+    let cancelled = false;
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } } })
+      .then((s) => {
+        if (cancelled) { s.getTracks().forEach((t) => t.stop()); return; }
+        videoStream.current?.getTracks().forEach((t) => t.stop());
+        videoStream.current = s; const v = videoRef.current!; v.srcObject = s; v.play().catch(() => {}); setCamErr("");
+      })
+      .catch(() => setCamErr("Não foi possível abrir a câmera. Verifique as permissões."));
+    return () => { cancelled = true; };
+  }, [facing]);
+  useEffect(() => () => videoStream.current?.getTracks().forEach((t) => t.stop()), []);
+
+  // render loop: camera frame + dashboard onto the canvas that is also recorded
+  useEffect(() => {
+    const c = canvasRef.current!; const ctx = c.getContext("2d")!;
+    const s = settingsRef.current ?? loadSettings();
+    const { w, h } = frameSize(format, s.resolution); c.width = w; c.height = h;
+    let raf = 0;
+    const loop = () => {
+      const st = settingsRef.current ?? s;
+      drawCover(ctx, videoRef.current!, w, h, facing === "user");
+      drawHud(ctx, w, h, { snap: engine.current.snapshot(Date.now()), gps: live.current.gps, battery: live.current.battery, recording: live.current.recording, paused: live.current.paused, settings: st, blink: Math.floor(Date.now() / 500) % 2 === 0 });
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [format, facing]);
+
+  const startRec = () => {
+    const mime = pickMime();
+    if (!mime) { toast.error("Este navegador não suporta gravação de vídeo."); return; }
+    const vs = canvasRef.current!.captureStream(30);
+    audioStream.current?.getAudioTracks().forEach((t) => vs.addTrack(t));
+    const r = new MediaRecorder(vs, { mimeType: mime, videoBitsPerSecond: settingsRef.current?.bitrate ?? 8e6 });
+    chunks.current = []; records.current = [];
+    r.ondataavailable = (e) => e.data.size && chunks.current.push(e.data);
+    r.start(1000); recorder.current = r;
+    startedAt.current = Date.now();
+    engine.current = new TelemetryEngine(); engine.current.start(Date.now());
+    live.current.recording = true; live.current.paused = false; setState("rec");
+  };
+  const pause = () => { recorder.current?.pause(); engine.current.pause(Date.now()); live.current.paused = true; setState("paused"); };
+  const resume = () => { recorder.current?.resume(); engine.current.start(Date.now()); live.current.paused = false; setState("rec"); };
+  const finish = async () => {
+    const r = recorder.current; if (!r) return;
+    setState("saving");
+    const now = Date.now(); engine.current.pause(now);
+    const snap = engine.current.snapshot(now);
+    const thumb = (() => { const t = document.createElement("canvas"); const src = canvasRef.current!; t.width = 360; t.height = Math.round((360 * src.height) / src.width); t.getContext("2d")!.drawImage(src, 0, 0, t.width, t.height); return t.toDataURL("image/jpeg", 0.75); })();
+    await new Promise<void>((res) => { r.onstop = () => res(); r.stop(); });
+    live.current.recording = false;
+    const mime = r.mimeType || pickMime();
+    const blob = new Blob(chunks.current, { type: mime.split(";")[0] });
+    const s = settingsRef.current!;
+    const a = { id: crypto.randomUUID(), type: s.activity, startedAt: startedAt.current, finishedAt: now, distance: snap.distance, duration: snap.elapsed,
+      avgPace: snap.avgPace, avgSpeed: snap.avgSpeed, maxSpeed: snap.maxSpeed, elevationGain: snap.elevationGain, mime: blob.type, format, thumb, records: records.current };
+    await saveActivity(a, blob);
+    if (s.cloudSync) syncActivity(a).then((ok) => ok && updateActivity({ ...a, synced: true }));
+    toast.success("Atividade salva na galeria");
+    nav({ to: "/galeria/$id", params: { id: a.id } });
+  };
+
+  const busy = state !== "idle";
+  const btn = "grid h-12 w-12 place-items-center rounded-full bg-glass text-foreground backdrop-blur disabled:opacity-30";
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-background">
+      <video ref={videoRef} playsInline muted className="hidden" />
+      <canvas ref={canvasRef} className="h-full w-full object-contain" />
+      {camErr && <p className="absolute top-1/3 rounded-lg bg-card p-4 text-center">{camErr}</p>}
+      <div className="absolute left-3 top-1/2 flex -translate-y-1/2 flex-col gap-3">
+        <Link to="/preparar" disabled={busy} className={btn} aria-label="Voltar"><ArrowLeft className="h-5 w-5" /></Link>
+        <button className={btn} onClick={() => setFacing((f) => (f === "environment" ? "user" : "environment"))} aria-label="Alternar câmera"><SwitchCamera className="h-5 w-5" /></button>
+        <button className={`${btn} text-[10px] font-bold`} disabled={busy} onClick={() => setFormat((f) => FORMATS[(FORMATS.indexOf(f) + 1) % 3]!)} aria-label="Enquadramento">
+          <span className="flex flex-col items-center"><Crop className="h-4 w-4" />{format}</span>
+        </button>
+      </div>
+      <div className="absolute right-3 top-1/2 flex -translate-y-1/2 flex-col items-center gap-4">
+        {state === "idle" && (
+          <button onClick={startRec} aria-label="Gravar" className="grid h-20 w-20 place-items-center rounded-full border-4 border-foreground bg-glass">
+            <span className="h-14 w-14 rounded-full bg-rec" />
+          </button>
+        )}
+        {(state === "rec" || state === "paused") && (<>
+          <button onClick={state === "rec" ? pause : resume} className={`${btn} h-16 w-16`} aria-label={state === "rec" ? "Pausar" : "Retomar"}>
+            {state === "rec" ? <Pause className="h-7 w-7" /> : <Play className="h-7 w-7" />}
+          </button>
+          <button onClick={finish} className="grid h-16 w-16 place-items-center rounded-full bg-rec text-foreground" aria-label="Finalizar"><Square className="h-6 w-6 fill-current" /></button>
+        </>)}
+        {state === "saving" && <span className="rounded-full bg-glass px-4 py-2 text-sm">Salvando…</span>}
+      </div>
+    </div>
+  );
+}
