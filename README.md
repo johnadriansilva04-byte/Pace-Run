@@ -6,14 +6,15 @@ para Android + Chrome.
 
 ## Rotas
 
-| Rota | Papel |
-| --- | --- |
-| `/` | Landing page de instalação (apresentação, demonstração do painel, botão INSTALAR PACE RUN). Redireciona para `/inicio` quando aberta em modo standalone. |
-| `/inicio` | Página inicial do aplicativo. É o `start_url` do manifest, então a primeira abertura pelo ícone cai aqui. |
-| `/preparar` | Escolha da atividade e verificação de câmera, GPS e microfone. |
-| `/camera` | Gravação: câmera + painel no canvas que também alimenta o `MediaRecorder`. |
-| `/galeria`, `/galeria/$id` | Gravações salvas no IndexedDB (reproduzir, salvar, compartilhar, excluir). |
-| `/configuracoes` | Unidades, indicadores visíveis, formato, qualidade, áudio e sincronização. |
+| Rota                       | Papel                                                                                                                                                    |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/`                        | Landing page de instalação (apresentação, demonstração do painel, botão INSTALAR PACE RUN). Redireciona para `/inicio` quando aberta em modo standalone. |
+| `/inicio`                  | Página inicial do aplicativo. É o `start_url` do manifest, então a primeira abertura pelo ícone cai aqui.                                                |
+| `/preparar`                | Escolha da atividade e verificação de câmera, GPS e microfone. GPS negado não bloqueia: avisa que distância e pace ficam zerados.                        |
+| `/camera`                  | Gravação: câmera + painel no canvas que também alimenta o `MediaRecorder`.                                                                               |
+| `/galeria`, `/galeria/$id` | Gravações salvas no IndexedDB (reproduzir, salvar, compartilhar, excluir) e parciais por km/milha.                                                       |
+| `/conquistas`              | Medalhas, recordes pessoais, sequência de dias e próximo objetivo, calculados do histórico local.                                                        |
+| `/configuracoes`           | Unidades, indicadores visíveis, formato, qualidade, áudio e sincronização.                                                                               |
 
 ## PWA
 
@@ -41,6 +42,20 @@ para Android + Chrome.
 Instalar não pede câmera nem localização. Em `/preparar`, as permissões só são solicitadas depois do
 toque em VERIFICAR CÂMERA, GPS E MICROFONE; a câmera abre para o teste e é desligada em seguida.
 
+## Recompensas
+
+Tudo é derivado das atividades já salvas no aparelho (`src/lib/rewards.ts`, funções puras com
+testes): nada de estado paralelo que possa divergir do histórico.
+
+- **No painel (HUD)**: abaixo do medidor de distância aparece `FALTAM 320 M` até o próximo km/milha,
+  e cada km fechado dispara o cartão de parabéns com parcial e ritmo, gravado no vídeo.
+- **No fim da gravação**: `RewardCard` mostra distância, tempo, pace, elevação, parciais, recordes
+  pessoais batidos e medalhas desbloqueadas naquela atividade, com atalhos para o vídeo e para as
+  conquistas.
+- **Em `/conquistas`**: distância total, atividades, dias seguidos, melhor parcial, próximo objetivo
+  com barra de progresso, medalhas por grupo (distância acumulada, percurso único, constância,
+  sequência) e recordes pessoais.
+
 ## Desenvolvimento
 
 ```sh
@@ -60,7 +75,6 @@ Produção: <https://pace-run-tan.vercel.app> — projeto Vercel `pace-run` (pre
 `tanstack-start-lovable`), ligado a este repositório: cada push em `main` publica.
 Variáveis de build na Vercel: `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`
 (projeto Supabase `pace-run`, tabelas de `supabase-setup/schema.sql`).
-
 
 O build é Nitro; o alvo padrão do projeto é Cloudflare. Para publicar em outro alvo, escolha o preset
 no build:

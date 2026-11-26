@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Images, Settings } from "lucide-react";
+import { Images, Settings, Trophy } from "lucide-react";
 
 export function Logo({ to = "/inicio" }: { to?: "/" | "/inicio" }) {
   return (
@@ -39,6 +39,13 @@ export function Header({ logoTo = "/inicio" }: { logoTo?: "/" | "/inicio" }) {
           >
             <Images className="h-4 w-4" />
             <span className="hidden sm:inline">Galeria</span>
+          </Link>
+          <Link
+            to="/conquistas"
+            className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-secondary hover:text-foreground"
+          >
+            <Trophy className="h-4 w-4" />
+            <span className="hidden sm:inline">Conquistas</span>
           </Link>
           <Link
             to="/configuracoes"

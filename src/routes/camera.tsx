@@ -13,9 +13,18 @@ import {
 import { AchievementTracker } from "@/lib/achievements";
 import { playBeep, playMilestone, playRecord, unlockAudio } from "@/lib/sfx";
 import { frameSize, loadSettings, type Settings } from "@/lib/settings";
-import { pickMime, saveActivity, updateActivity, type RecordPoint } from "@/lib/gallery";
+import {
+  listActivities,
+  pickMime,
+  saveActivity,
+  updateActivity,
+  type Activity,
+  type RecordPoint,
+} from "@/lib/gallery";
 import { createPacer } from "@/lib/frame-pacer";
 import { syncActivity } from "@/lib/supabase";
+import { summarize, type ActivitySummary } from "@/lib/rewards";
+import { RewardCard } from "@/components/pace/RewardCard";
 
 export const Route = createFileRoute("/camera")({
   head: () => ({
@@ -64,7 +73,8 @@ function CameraPage() {
   const startedAt = useRef(0);
   const [facing, setFacing] = useState<"environment" | "user">("environment");
   const [format, setFormat] = useState<Settings["format"]>("9:16");
-  const [state, setState] = useState<"idle" | "rec" | "paused" | "saving">("idle");
+  const [state, setState] = useState<"idle" | "rec" | "paused" | "saving" | "done">("idle");
+  const [summary, setSummary] = useState<(ActivitySummary & { id: string }) | null>(null);
   const [camErr, setCamErr] = useState("");
   const [attempt, setAttempt] = useState(0);
 
@@ -111,9 +121,18 @@ function CameraPage() {
         wakeLock?: { request: (t: string) => Promise<{ release: () => Promise<void> }> };
       }
     ).wakeLock;
-    wl?.request("screen")
-      .then((l) => (lock = l))
-      .catch(() => {});
+    const requestLock = () => {
+      wl?.request("screen")
+        .then((l) => (lock = l))
+        .catch(() => {});
+    };
+    requestLock();
+    // Android libera o wake lock quando a tela apaga ou o app vai para segundo plano; sem
+    // readquirir, uma atividade longa volta com a tela apagando no meio do percurso.
+    const onVisible = () => {
+      if (document.visibilityState === "visible") requestLock();
+    };
+    document.addEventListener("visibilitychange", onVisible);
     const sample = setInterval(() => {
       if (!engine.current.running) return;
       const sn = engine.current.snapshot(Date.now());
@@ -129,6 +148,7 @@ function CameraPage() {
       });
     }, 1000);
     return () => {
+      document.removeEventListener("visibilitychange", onVisible);
       if (gid != null) navigator.geolocation.clearWatch(gid);
       clearInterval(sample);
       lock?.release().catch(() => {});
@@ -292,6 +312,11 @@ function CameraPage() {
       toast.error("Este navegador não suporta gravação de vídeo.");
       return;
     }
+    if (live.current.gps === "denied" || live.current.gps === "unavailable") {
+      toast.warning("GPS bloqueado: o vídeo grava, mas distância e pace não vão andar.");
+    } else if (live.current.gps === "searching") {
+      toast.warning("Ainda procurando sinal de GPS: comece a andar e os números entram no vídeo.");
+    }
     const vs = canvasRef.current!.captureStream(30);
     audioStream.current?.getAudioTracks().forEach((t) => vs.addTrack(t));
     let r: MediaRecorder;
@@ -357,8 +382,18 @@ function CameraPage() {
       return t.toDataURL("image/jpeg", 0.75);
     })();
     await new Promise<void>((res) => {
+      if (r.state === "inactive") {
+        res();
+        return;
+      }
       r.onstop = () => res();
-      r.stop();
+      try {
+        r.stop();
+      } catch {
+        // O recorder pode ter sido encerrado pelo navegador (memória, tela bloqueada):
+        // o que já chegou em `chunks` continua sendo salvo.
+        res();
+      }
     });
     live.current.recording = false;
     const mime = r.mimeType || pickMime();
@@ -392,6 +427,15 @@ function CameraPage() {
         if (ok) void updateActivity({ ...a, synced: true });
       });
     toast.success("Atividade salva na galeria");
+    // Recompensa imediata: recordes, parciais e medalhas saem do histórico local.
+    try {
+      const others = (await listActivities()).filter((x) => x.id !== a.id);
+      setSummary({ ...summarize(a as Activity, others, { unit: s.unit }), id: a.id });
+      setState("done");
+      return;
+    } catch {
+      /* se o resumo falhar, o vídeo continua salvo: vai direto para a galeria */
+    }
     nav({ to: "/galeria/$id", params: { id: a.id } });
   };
 
@@ -408,7 +452,36 @@ function CameraPage() {
         className="pointer-events-none absolute h-px w-px opacity-0"
       />
       <canvas ref={canvasRef} className="h-full w-full object-contain" />
-      {camErr && (
+      {state === "done" && summary && (
+        <div className="absolute inset-0 z-20 flex flex-col items-center gap-4 overflow-y-auto bg-background/95 px-4 py-6">
+          <RewardCard summary={summary} />
+          <div className="flex w-full max-w-md flex-wrap gap-2">
+            <Link
+              to="/galeria/$id"
+              params={{ id: summary.id }}
+              className="flex-1 rounded-lg bg-primary px-4 py-3 text-center font-display text-sm font-bold text-primary-foreground"
+            >
+              VER VÍDEO
+            </Link>
+            <Link
+              to="/conquistas"
+              className="flex-1 rounded-lg border border-border bg-secondary px-4 py-3 text-center font-display text-sm font-bold"
+            >
+              CONQUISTAS
+            </Link>
+            <button
+              onClick={() => {
+                setSummary(null);
+                setState("idle");
+              }}
+              className="w-full rounded-lg px-4 py-2 text-sm text-muted-foreground"
+            >
+              GRAVAR OUTRA ATIVIDADE
+            </button>
+          </div>
+        </div>
+      )}
+      {state !== "done" && camErr && (
         <div className="absolute inset-x-6 top-1/3 space-y-3 rounded-xl border border-border bg-card p-4 text-center">
           <p className="text-sm text-muted-foreground">{camErr}</p>
           <button

@@ -149,7 +149,10 @@ function Prep() {
     setChecking(false);
   };
 
-  const ready = cam === "ok" && (gps === "ok" || gps === "weak");
+  // O GPS é desejável, não pré-requisito: quem negou a localização (ou está num aparelho
+  // sem GPS) ainda consegue gravar o vídeo — o painel avisa que os números não vão andar.
+  const gpsOk = gps === "ok" || gps === "weak";
+  const ready = cam === "ok";
   const verified = cam !== "idle" || gps !== "idle";
   const types = [
     ["corrida", "Corrida"],
@@ -251,11 +254,21 @@ function Prep() {
               : "pointer-events-none bg-muted text-muted-foreground"
           }`}
         >
-          {ready ? "ABRIR CÂMERA ESPORTIVA" : "VERIFIQUE CÂMERA E GPS PARA CONTINUAR"}
+          {ready
+            ? gpsOk
+              ? "ABRIR CÂMERA ESPORTIVA"
+              : "ABRIR CÂMERA (SEM GPS)"
+            : "VERIFIQUE A CÂMERA PARA CONTINUAR"}
         </Link>
         {gps === "weak" && (
           <p className="text-center text-xs text-accent">
             Sinal fraco: vá para um lugar aberto para mais precisão.
+          </p>
+        )}
+        {cam === "ok" && !gpsOk && (
+          <p className="text-center text-xs text-accent">
+            Sem GPS: o vídeo grava normalmente, mas distância, pace e velocidade ficam zerados até o
+            sinal voltar.
           </p>
         )}
         <p className="pb-safe text-center text-xs text-muted-foreground">

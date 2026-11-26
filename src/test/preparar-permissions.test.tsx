@@ -5,8 +5,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { routeTree } from "@/routeTree.gen";
 
 let onPosition: PositionCallback | undefined;
-const watchPosition = vi.fn((success: PositionCallback) => {
+let onPositionError: PositionErrorCallback | undefined;
+const watchPosition = vi.fn((success: PositionCallback, error?: PositionErrorCallback) => {
   onPosition = success;
+  onPositionError = error;
   return 7;
 });
 const getUserMedia = vi.fn();
@@ -45,7 +47,7 @@ describe("preparation page permissions", () => {
     expect(await screen.findByRole("heading", { name: "Preparação" })).toBeInTheDocument();
     expect(getUserMedia).not.toHaveBeenCalled();
     expect(watchPosition).not.toHaveBeenCalled();
-    expect(screen.getByText("VERIFIQUE CÂMERA E GPS PARA CONTINUAR")).toBeInTheDocument();
+    expect(screen.getByText("VERIFIQUE A CÂMERA PARA CONTINUAR")).toBeInTheDocument();
   });
 
   it("verifies camera and GPS after the explicit tap, then enables the camera", async () => {
@@ -79,5 +81,21 @@ describe("preparation page permissions", () => {
     const open = await screen.findByRole("link", { name: "ABRIR CÂMERA ESPORTIVA" });
     expect(open).toHaveAttribute("href", "/camera");
     expect(screen.getByText(/Pronta \(teste encerrado, câmera desligada\)/)).toBeInTheDocument();
+  });
+
+  it("keeps the camera reachable when the GPS permission is denied", async () => {
+    await renderPreparar();
+    fireEvent.click(
+      await screen.findByRole("button", { name: /VERIFICAR CÂMERA, GPS E MICROFONE/ }),
+    );
+    await waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(1));
+
+    act(() => {
+      onPositionError?.({ code: 1, message: "denied" } as GeolocationPositionError);
+    });
+
+    const open = await screen.findByRole("link", { name: "ABRIR CÂMERA (SEM GPS)" });
+    expect(open).toHaveAttribute("href", "/camera");
+    expect(screen.getByText(/distância, pace e velocidade ficam zerados/)).toBeInTheDocument();
   });
 });

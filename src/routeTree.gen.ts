@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CameraRouteImport } from './routes/camera'
 import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
+import { Route as ConquistasRouteImport } from './routes/conquistas'
 import { Route as GaleriaRouteImport } from './routes/galeria'
 import { Route as InicioRouteImport } from './routes/inicio'
 import { Route as PrepararRouteImport } from './routes/preparar'
@@ -31,6 +32,11 @@ const CameraRoute = CameraRouteImport.update({
 const ConfiguracoesRoute = ConfiguracoesRouteImport.update({
   id: '/configuracoes',
   path: '/configuracoes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConquistasRoute = ConquistasRouteImport.update({
+  id: '/conquistas',
+  path: '/conquistas',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GaleriaRoute = GaleriaRouteImport.update({
@@ -63,6 +69,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/camera': typeof CameraRoute
   '/configuracoes': typeof ConfiguracoesRoute
+  '/conquistas': typeof ConquistasRoute
   '/galeria': typeof GaleriaRouteWithChildren
   '/inicio': typeof InicioRoute
   '/preparar': typeof PrepararRoute
@@ -73,6 +80,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/camera': typeof CameraRoute
   '/configuracoes': typeof ConfiguracoesRoute
+  '/conquistas': typeof ConquistasRoute
   '/inicio': typeof InicioRoute
   '/preparar': typeof PrepararRoute
   '/galeria/$id': typeof GaleriaIdRoute
@@ -83,6 +91,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/camera': typeof CameraRoute
   '/configuracoes': typeof ConfiguracoesRoute
+  '/conquistas': typeof ConquistasRoute
   '/galeria': typeof GaleriaRouteWithChildren
   '/inicio': typeof InicioRoute
   '/preparar': typeof PrepararRoute
@@ -95,6 +104,7 @@ export interface FileRouteTypes {
     | '/'
     | '/camera'
     | '/configuracoes'
+    | '/conquistas'
     | '/galeria'
     | '/inicio'
     | '/preparar'
@@ -105,6 +115,7 @@ export interface FileRouteTypes {
     | '/'
     | '/camera'
     | '/configuracoes'
+    | '/conquistas'
     | '/inicio'
     | '/preparar'
     | '/galeria/$id'
@@ -114,6 +125,7 @@ export interface FileRouteTypes {
     | '/'
     | '/camera'
     | '/configuracoes'
+    | '/conquistas'
     | '/galeria'
     | '/inicio'
     | '/preparar'
@@ -125,6 +137,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CameraRoute: typeof CameraRoute
   ConfiguracoesRoute: typeof ConfiguracoesRoute
+  ConquistasRoute: typeof ConquistasRoute
   GaleriaRoute: typeof GaleriaRouteWithChildren
   InicioRoute: typeof InicioRoute
   PrepararRoute: typeof PrepararRoute
@@ -151,6 +164,13 @@ declare module '@tanstack/react-router' {
       path: '/configuracoes'
       fullPath: '/configuracoes'
       preLoaderRoute: typeof ConfiguracoesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/conquistas': {
+      id: '/conquistas'
+      path: '/conquistas'
+      fullPath: '/conquistas'
+      preLoaderRoute: typeof ConquistasRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/galeria': {
@@ -208,6 +228,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CameraRoute: CameraRoute,
   ConfiguracoesRoute: ConfiguracoesRoute,
+  ConquistasRoute: ConquistasRoute,
   GaleriaRoute: GaleriaRouteWithChildren,
   InicioRoute: InicioRoute,
   PrepararRoute: PrepararRoute,

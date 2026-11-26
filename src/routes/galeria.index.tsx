@@ -2,20 +2,33 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Header } from "@/components/pace/Header";
 import { listActivities, type Activity } from "@/lib/gallery";
+import { loadSettings } from "@/lib/settings";
+import type { Unit } from "@/lib/rewards";
 import { formatDistance, formatDuration, formatPace } from "@/lib/telemetry";
 
 export const Route = createFileRoute("/galeria/")({
-  head: () => ({ meta: [
-    { title: "Minha galeria — PACE RUN" }, { name: "description", content: "Suas atividades gravadas." },
-    { property: "og:title", content: "Minha galeria — PACE RUN" }, { property: "og:description", content: "Vídeos com telemetria." },
-    { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" },
-  ] }),
+  head: () => ({
+    meta: [
+      { title: "Minha galeria — PACE RUN" },
+      { name: "description", content: "Suas atividades gravadas." },
+      { property: "og:title", content: "Minha galeria — PACE RUN" },
+      { property: "og:description", content: "Vídeos com telemetria." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+    ],
+  }),
   component: Gallery,
 });
 
 function Gallery() {
   const [items, setItems] = useState<Activity[] | null>(null);
-  useEffect(() => { listActivities().then(setItems); }, []);
+  const [unit, setUnit] = useState<Unit>("km");
+  useEffect(() => {
+    setUnit(loadSettings().unit);
+    listActivities()
+      .then(setItems)
+      .catch(() => setItems([]));
+  }, []);
   return (
     <div className="min-h-screen bg-hero">
       <Header />
@@ -24,16 +37,31 @@ function Gallery() {
         {items && items.length === 0 && (
           <div className="rounded-xl border border-border bg-card p-10 text-center">
             <p className="mb-4 text-muted-foreground">Nenhuma gravação ainda.</p>
-            <Link to="/preparar" className="rounded-lg bg-primary px-6 py-3 font-display font-bold text-primary-foreground">INICIAR ATIVIDADE</Link>
+            <Link
+              to="/preparar"
+              className="rounded-lg bg-primary px-6 py-3 font-display font-bold text-primary-foreground"
+            >
+              INICIAR ATIVIDADE
+            </Link>
           </div>
         )}
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
           {items?.map((a) => (
-            <Link key={a.id} to="/galeria/$id" params={{ id: a.id }} className="overflow-hidden rounded-xl border border-border bg-card hover:border-primary">
+            <Link
+              key={a.id}
+              to="/galeria/$id"
+              params={{ id: a.id }}
+              className="overflow-hidden rounded-xl border border-border bg-card hover:border-primary"
+            >
               <img src={a.thumb} alt="" className="aspect-[3/4] w-full object-cover" />
               <div className="p-3 text-sm">
-                <div className="font-display font-bold capitalize">{a.type} · {formatDistance(a.distance)} km</div>
-                <div className="text-muted-foreground">{new Date(a.startedAt).toLocaleDateString("pt-BR")} · {formatDuration(a.duration)} · {formatPace(a.avgPace)}/km</div>
+                <div className="font-display font-bold capitalize">
+                  {a.type} · {formatDistance(a.distance, unit)} {unit}
+                </div>
+                <div className="text-muted-foreground">
+                  {new Date(a.startedAt).toLocaleDateString("pt-BR")} · {formatDuration(a.duration)}{" "}
+                  · {formatPace(a.avgPace, unit)}/{unit}
+                </div>
               </div>
             </Link>
           ))}

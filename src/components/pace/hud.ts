@@ -9,6 +9,7 @@ import {
   type GpsState,
 } from "@/lib/telemetry";
 import type { Settings } from "@/lib/settings";
+import { nextMilestone, remainingLabel } from "@/lib/rewards";
 
 // Canvas cannot read Tailwind classes; palette mirrors the --hud-* tokens in styles.css.
 const C = {
@@ -213,10 +214,23 @@ export function drawHud(ctx: CanvasRenderingContext2D, w: number, h: number, st:
   }
   // right gauge: distance (progress to next unit)
   if (s.show.distance) {
-    const unitM = u === "mi" ? 1609.344 : 1000;
-    gauge(ctx, right, cy, r, (distance % unitM) / unitM, C.accent, 16 * k);
+    const next = nextMilestone(distance, u);
+    gauge(ctx, right, cy, r, next.progress, C.accent, 16 * k);
     text(ctx, cache, formatDistance(distance, u), right, cy + 18 * k, 64 * k, C.text);
     text(ctx, cache, u.toUpperCase(), right, cy + 58 * k, 24 * k, C.dim, "center", 600);
+    // The gap to the next unit is the live goal of the run: showing it turns the gauge into a
+    // countdown and gives the milestone something to land on.
+    text(
+      ctx,
+      cache,
+      remainingLabel(next.remaining, u),
+      right,
+      cy + 92 * k,
+      22 * k,
+      C.accent,
+      "center",
+      700,
+    );
   }
   // center: the hero number, PACE
   if (s.show.pace) {

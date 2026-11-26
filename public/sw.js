@@ -9,7 +9,7 @@
  *
  * Bump CACHE_VERSION on every release: activation drops the previous caches.
  */
-const CACHE_VERSION = "pacerun-v3";
+const CACHE_VERSION = "pacerun-v4";
 const PRECACHE = `${CACHE_VERSION}-precache`;
 const RUNTIME = `${CACHE_VERSION}-runtime`;
 const OFFLINE_URL = "/offline.html";

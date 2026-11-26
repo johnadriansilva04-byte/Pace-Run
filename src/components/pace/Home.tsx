@@ -1,10 +1,14 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Camera, Images, MapPin, Play, Share2, ShieldCheck } from "lucide-react";
+import { Camera, Flame, Images, MapPin, Play, Share2, ShieldCheck, Trophy } from "lucide-react";
 import { Header } from "@/components/pace/Header";
 import { DemoDash } from "@/components/pace/DemoDash";
 import { InstallButton } from "@/components/pace/Install";
 import { useInstall } from "@/lib/pwa";
+import { listActivities } from "@/lib/gallery";
+import { loadSettings } from "@/lib/settings";
+import { formatDistance } from "@/lib/telemetry";
+import { computeStats, type Unit } from "@/lib/rewards";
 
 const steps = [
   {
@@ -23,6 +27,57 @@ const steps = [
     text: "Vídeo pronto para Instagram, TikTok e WhatsApp.",
   },
 ];
+
+/**
+ * Faixa de progresso do pesquisador. Só existe quando há atividade gravada — um
+ * visitante novo não vê zeros, e quem já corre vê o que conquistou sem abrir nada.
+ */
+function ProgressStrip() {
+  const [data, setData] = useState<{ distance: number; activities: number; streak: number } | null>(
+    null,
+  );
+  const [unit, setUnit] = useState<Unit>("km");
+  useEffect(() => {
+    setUnit(loadSettings().unit);
+    listActivities()
+      .then((list) => {
+        const stats = computeStats(list);
+        setData({
+          distance: stats.totalDistance,
+          activities: stats.activities,
+          streak: stats.streakDays,
+        });
+      })
+      .catch(() => setData(null));
+  }, []);
+  if (!data || data.activities === 0) return null;
+  return (
+    <section className="mb-8 grid gap-3 rounded-2xl border border-border bg-card/60 p-5 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-center">
+      <div>
+        <p className="text-[11px] tracking-wider text-muted-foreground">DISTÂNCIA TOTAL</p>
+        <p className="font-display text-2xl font-bold">
+          {formatDistance(data.distance, unit)} {unit}
+        </p>
+      </div>
+      <div>
+        <p className="text-[11px] tracking-wider text-muted-foreground">ATIVIDADES</p>
+        <p className="font-display text-2xl font-bold">{data.activities}</p>
+      </div>
+      <div>
+        <p className="flex items-center gap-1 text-[11px] tracking-wider text-muted-foreground">
+          <Flame className="h-3 w-3 text-primary" /> DIAS SEGUIDOS
+        </p>
+        <p className="font-display text-2xl font-bold">{data.streak}</p>
+      </div>
+      <Link
+        to="/conquistas"
+        className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-secondary px-5 py-3 font-display text-sm font-bold"
+      >
+        <Trophy className="h-4 w-4 text-primary" /> CONQUISTAS
+      </Link>
+    </section>
+  );
+}
 
 function InstallBanner() {
   const { installed } = useInstall();
@@ -96,6 +151,7 @@ export function Home() {
             <p className="mt-3 text-center text-xs text-muted-foreground">Demonstração do painel</p>
           </div>
         </section>
+        <ProgressStrip />
         <section className="speed-lines grid gap-4 rounded-2xl border border-border bg-card/60 p-6 pb-8 md:grid-cols-3 md:p-10">
           <h2 className="font-display text-sm tracking-widest text-muted-foreground md:col-span-3">
             COMO FUNCIONA
