@@ -28,6 +28,29 @@ describe("telemetry", () => {
     expect(e.distance).toBeCloseTo(30, 0);
     expect(e.elapsed(60000)).toBe(10);
   });
+  it("interpolates distance between fixes for the live HUD only", () => {
+    const e = new TelemetryEngine();
+    e.start(0);
+    e.addFix({ ...north(0), alt: null, accuracy: 5, speed: 3, t: 0 });
+    e.addFix({ ...north(30), alt: null, accuracy: 5, speed: 3, t: 10000 });
+    // half a second after the last fix, at 3 m/s
+    expect(e.snapshot(10500, { interpolate: true }).displayDistance).toBeCloseTo(31.5, 1);
+    // the stored value never moves
+    expect(e.snapshot(10500).distance).toBeCloseTo(30, 0);
+    // no extrapolation without a recent fix
+    expect(e.snapshot(20000, { interpolate: true }).displayDistance).toBeCloseTo(30, 0);
+  });
+
+  it("smooths instant speed but reacts quickly to a slowdown", () => {
+    const e = new TelemetryEngine();
+    e.start(0);
+    e.addFix({ ...north(0), alt: null, accuracy: 5, speed: 4, t: 0 });
+    e.addFix({ ...north(40), alt: null, accuracy: 5, speed: 4, t: 10000 });
+    expect(e.snapshot(10000).speed).toBeCloseTo(4, 1);
+    e.addFix({ ...north(80), alt: null, accuracy: 5, speed: 0, t: 20000 });
+    expect(e.snapshot(20000).speed).toBeLessThan(1.2);
+  });
+
   it("drops implausible jumps", () => {
     const e = new TelemetryEngine();
     e.start(0);

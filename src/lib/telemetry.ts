@@ -1,8 +1,16 @@
 // Pure telemetry engine: GPS fixes in, filtered metrics out. No browser APIs here.
-export type Fix = { lat: number; lon: number; alt: number | null; accuracy: number; speed: number | null; t: number };
+export type Fix = {
+  lat: number;
+  lon: number;
+  alt: number | null;
+  accuracy: number;
+  speed: number | null;
+  t: number;
+};
 export type Snapshot = {
   elapsed: number; // active seconds
   distance: number; // meters
+  displayDistance?: number; // distance with a short interpolation, for the live HUD only
   speed: number | null; // m/s instant (null = unreliable)
   pace: number | null; // s/km instant
   avgPace: number | null;
@@ -26,7 +34,8 @@ export function haversine(a: { lat: number; lon: number }, b: { lat: number; lon
   const toR = (d: number) => (d * Math.PI) / 180;
   const dLat = toR(b.lat - a.lat);
   const dLon = toR(b.lon - a.lon);
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(toR(a.lat)) * Math.cos(toR(b.lat)) * Math.sin(dLon / 2) ** 2;
+  const h =
+    Math.sin(dLat / 2) ** 2 + Math.cos(toR(a.lat)) * Math.cos(toR(b.lat)) * Math.sin(dLon / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
@@ -76,12 +85,26 @@ export class TelemetryEngine {
   elevationGain = 0;
   latestAccuracy: number | null = null;
   latest: Fix | null = null;
+  private lastFixAt: number | null = null;
+  private emaSpeed: number | null = null;
 
-  get running() { return this.runningSince != null; }
+  get running() {
+    return this.runningSince != null;
+  }
 
-  start(now: number) { if (this.runningSince == null) { this.runningSince = now; this.last = null; this.recent = []; } }
+  start(now: number) {
+    if (this.runningSince == null) {
+      this.runningSince = now;
+      this.last = null;
+      this.recent = [];
+      this.emaSpeed = null;
+    }
+  }
   pause(now: number) {
-    if (this.runningSince != null) { this.activeMs += now - this.runningSince; this.runningSince = null; }
+    if (this.runningSince != null) {
+      this.activeMs += now - this.runningSince;
+      this.runningSince = null;
+    }
   }
 
   elapsed(now: number) {
@@ -92,14 +115,18 @@ export class TelemetryEngine {
     this.latestAccuracy = f.accuracy;
     if (f.accuracy > MAX_ACCURACY_M) return;
     this.latest = f;
-    if (f.alt != null) this.smoothAlt = this.smoothAlt == null ? f.alt : this.smoothAlt * 0.8 + f.alt * 0.2;
+    this.lastFixAt = f.t;
+    if (f.alt != null)
+      this.smoothAlt = this.smoothAlt == null ? f.alt : this.smoothAlt * 0.8 + f.alt * 0.2;
     if (!this.running) return;
 
     if (this.smoothAlt != null) {
       if (this.elevRef == null) this.elevRef = this.smoothAlt;
       const d = this.smoothAlt - this.elevRef;
-      if (d >= ELEV_THRESHOLD_M) { this.elevationGain += d; this.elevRef = this.smoothAlt; }
-      else if (d <= -ELEV_THRESHOLD_M) this.elevRef = this.smoothAlt;
+      if (d >= ELEV_THRESHOLD_M) {
+        this.elevationGain += d;
+        this.elevRef = this.smoothAlt;
+      } else if (d <= -ELEV_THRESHOLD_M) this.elevRef = this.smoothAlt;
     }
 
     if (this.last) {
@@ -115,6 +142,13 @@ export class TelemetryEngine {
     this.recent = this.recent.filter((r) => f.t - r.t <= 10000);
     const s = this.currentSpeed();
     if (s != null && s > this.maxSpeed) this.maxSpeed = s;
+    // Asymmetric smoothing: follows a slowdown fast (no stuck pace) but softens the noisy
+    // instant speed the GPS reports.
+    if (s != null)
+      this.emaSpeed =
+        this.emaSpeed == null
+          ? s
+          : this.emaSpeed + (s - this.emaSpeed) * (s > this.emaSpeed ? 0.45 : 0.8);
   }
 
   currentSpeed(): number | null {
@@ -123,18 +157,35 @@ export class TelemetryEngine {
     if (l && l.speed != null && l.speed >= 0) return l.speed;
     if (this.recent.length < 2) return null;
     let d = 0;
-    for (let i = 1; i < this.recent.length; i++) d += haversine(this.recent[i - 1]!, this.recent[i]!);
+    for (let i = 1; i < this.recent.length; i++)
+      d += haversine(this.recent[i - 1]!, this.recent[i]!);
     const dt = (this.recent[this.recent.length - 1]!.t - this.recent[0]!.t) / 1000;
     return dt > 0 ? d / dt : null;
   }
 
-  snapshot(now: number): Snapshot {
+  // `interpolate` extrapolates the distance between fixes so the HUD keeps moving instead of
+  // jumping once per second. Never used for stored records.
+  snapshot(now: number, opts?: { interpolate?: boolean }): Snapshot {
     const elapsed = this.elapsed(now);
-    const speed = this.currentSpeed();
+    const raw = this.currentSpeed();
+    const speed = this.emaSpeed ?? raw;
+    let displayDistance = this.distance;
+    if (
+      opts?.interpolate &&
+      this.running &&
+      this.lastFixAt != null &&
+      raw != null &&
+      raw > MIN_MOVING_SPEED
+    ) {
+      // Only bridge the gap between two fixes: a stale fix must not keep inflating the number.
+      const age = now - this.lastFixAt;
+      if (age > 0 && age <= 2000) displayDistance += raw * Math.min(age / 1000, 1.5);
+    }
     const avgSpeed = elapsed > 0 && this.distance > 0 ? this.distance / elapsed : null;
     return {
       elapsed,
       distance: this.distance,
+      displayDistance,
       speed,
       pace: paceFromSpeed(speed),
       avgPace: this.distance >= 50 ? (elapsed / this.distance) * 1000 : null,

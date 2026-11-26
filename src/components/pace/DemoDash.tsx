@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { drawHud } from "./hud";
+import { drawCelebration, drawHud } from "./hud";
 import { defaultSettings } from "@/lib/settings";
 import { createPacer } from "@/lib/frame-pacer";
 
@@ -11,6 +11,7 @@ const W = 1080;
 const H = 1920;
 const FRAME_MS = 1000 / 30;
 const HUD_MS = 200;
+const CELEBRATION_S = 2.6;
 
 function paintScene(ctx: CanvasRenderingContext2D) {
   const sky = ctx.createLinearGradient(0, 0, 0, H * 0.55);
@@ -111,6 +112,16 @@ export function DemoDash() {
           ctx.stroke();
         }
         ctx.drawImage(hud, 0, 0);
+        // Showcase of the milestone card: same renderer used while recording.
+        const phase = t % 12;
+        if (phase < CELEBRATION_S) {
+          drawCelebration(ctx, W, H, {
+            title: "5 KM",
+            detail: "PARABÉNS · 26:00 · 5:12/km",
+            tone: "accent",
+            progress: phase / CELEBRATION_S,
+          });
+        }
       }
       raf = requestAnimationFrame(loop);
     };

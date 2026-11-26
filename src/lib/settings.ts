@@ -16,6 +16,8 @@ export type Settings = {
     gain: boolean;
   };
   cloudSync: boolean;
+  celebrations: boolean;
+  sound: boolean;
 };
 export const defaultSettings: Settings = {
   unit: "km",
@@ -34,6 +36,8 @@ export const defaultSettings: Settings = {
     gain: true,
   },
   cloudSync: false,
+  celebrations: true,
+  sound: true,
 };
 const KEY = "pacerun.settings";
 const LEGACY_KEY = "pacecam.settings";

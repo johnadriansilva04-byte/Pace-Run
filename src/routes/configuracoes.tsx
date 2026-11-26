@@ -125,6 +125,26 @@ function Config() {
         </section>
 
         <section className="space-y-2">
+          <h2 className="font-semibold">Avisos durante a atividade</h2>
+          <div className="flex flex-wrap gap-2">
+            <button
+              className={on(s.celebrations)}
+              onClick={() => up({ celebrations: !s.celebrations })}
+            >
+              Km e recordes
+            </button>
+            <button className={on(s.sound)} onClick={() => up({ sound: !s.sound })}>
+              Som dos avisos
+            </button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            A cada km (ou milha) o painel mostra PARABÉNS e toca um aviso; a parcial mais rápida até
+            o momento aparece como RECORDE DE RITMO. Os avisos entram no vídeo gravado; o som sai
+            apenas no alto-falante do aparelho.
+          </p>
+        </section>
+
+        <section className="space-y-2">
           <h2 className="font-semibold">Áudio e armazenamento</h2>
           <div className="flex flex-wrap gap-2">
             <button

@@ -123,6 +123,8 @@ function text(
 export function drawHud(ctx: CanvasRenderingContext2D, w: number, h: number, st: HudState) {
   const { snap, settings: s } = st;
   const u = s.unit;
+  // The interpolated value only exists for the live HUD; stored records use the real distance.
+  const distance = snap.displayDistance ?? snap.distance;
   const k = Math.min(w, h) / 1080; // scale unit
   const pad = 40 * k;
   const cache = cacheFor(ctx, w, h);
@@ -212,8 +214,8 @@ export function drawHud(ctx: CanvasRenderingContext2D, w: number, h: number, st:
   // right gauge: distance (progress to next unit)
   if (s.show.distance) {
     const unitM = u === "mi" ? 1609.344 : 1000;
-    gauge(ctx, right, cy, r, (snap.distance % unitM) / unitM, C.accent, 16 * k);
-    text(ctx, cache, formatDistance(snap.distance, u), right, cy + 18 * k, 64 * k, C.text);
+    gauge(ctx, right, cy, r, (distance % unitM) / unitM, C.accent, 16 * k);
+    text(ctx, cache, formatDistance(distance, u), right, cy + 18 * k, 64 * k, C.text);
     text(ctx, cache, u.toUpperCase(), right, cy + 58 * k, 24 * k, C.dim, "center", 600);
   }
   // center: the hero number, PACE
@@ -249,6 +251,90 @@ export function drawHud(ctx: CanvasRenderingContext2D, w: number, h: number, st:
     text(ctx, cache, val, x, sy - 4 * k, 40 * k, C.text);
     text(ctx, cache, label, x, sy - 50 * k, 20 * k, C.dim, "center", 600);
   });
+}
+
+export type Celebration = {
+  title: string;
+  detail: string;
+  progress: number; // 0..1 across the display window
+  tone?: "accent" | "hot";
+};
+
+function rounded(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number,
+) {
+  if (typeof ctx.roundRect === "function") {
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, r);
+    return;
+  }
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+// Celebration card drawn over the live frame while a milestone or a pace record is fresh.
+// It is drawn on the recorded canvas too, so the highlight ends up inside the video.
+export function drawCelebration(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  c: Celebration,
+) {
+  const k = Math.min(w, h) / 1080;
+  const appear = Math.min(1, c.progress / 0.12);
+  const fade = c.progress > 0.82 ? 1 - (c.progress - 0.82) / 0.18 : 1;
+  const alpha = Math.max(0, Math.min(appear, fade));
+  if (alpha <= 0) return;
+
+  const accent = c.tone === "hot" ? C.hot : C.accent;
+  const ease = 1 - (1 - appear) ** 3;
+  const titleSize = 116 * k;
+  const detailSize = 36 * k;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(w / 2, h * 0.33);
+  const scale = 0.94 + 0.06 * ease;
+  ctx.scale(scale, scale);
+
+  const titleFont = `700 ${Math.round(titleSize)}px ${FONT}`;
+  const detailFont = `600 ${Math.round(detailSize)}px ${FONT}`;
+  ctx.font = titleFont;
+  const tw = ctx.measureText(c.title).width;
+  ctx.font = detailFont;
+  const dw = ctx.measureText(c.detail).width;
+  const padX = 64 * k;
+  const padY = 46 * k;
+  const gap = 18 * k;
+  const cw = Math.max(tw, dw) + padX * 2;
+  const ch = titleSize + detailSize + padY * 2 + gap;
+
+  rounded(ctx, -cw / 2, -ch / 2, cw, ch, 26 * k);
+  ctx.fillStyle = "rgba(10,12,16,0.86)";
+  ctx.fill();
+  ctx.strokeStyle = accent;
+  ctx.lineWidth = 4 * k;
+  ctx.stroke();
+
+  ctx.textAlign = "center";
+  ctx.textBaseline = "alphabetic";
+  ctx.font = titleFont;
+  ctx.fillStyle = accent;
+  ctx.fillText(c.title, 0, -ch / 2 + padY + titleSize * 0.78);
+  ctx.font = detailFont;
+  ctx.fillStyle = C.text;
+  ctx.fillText(c.detail, 0, ch / 2 - padY - detailSize * 0.2);
+  ctx.restore();
 }
 
 // Draw a video frame with object-fit: cover (no stretching).

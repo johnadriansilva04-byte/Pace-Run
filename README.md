@@ -73,6 +73,20 @@ NITRO_PRESET=node-server npm run build # Node (saída em .output/server/index.mj
 `vercel.json` mantém `sw.js` e o manifest fora de cache longo — se o service worker ficar preso em CDN,
 uma nova versão do app não chega aos usuários instalados.
 
+## Avisos durante a atividade
+
+- A cada km (ou milha) o painel mostra um cartão `PARABÉNS` com o tempo e o pace da parcial e toca
+  um aviso de duas notas.
+- Quando a parcial é mais rápida que a melhor anterior, o cartão vira `RECORDE DE RITMO` com três
+  notas. A primeira parcial é só referência — não existe recorde antes dela.
+- Parciais abaixo de 20 s ou acima de 3 h são descartadas (salto de GPS, não corrida).
+- O cartão é desenhado no canvas gravado, então aparece no vídeo. O som é sintetizado com Web Audio
+  (sem arquivos, funciona offline) e sai só no alto-falante — com "Gravar áudio original" ligado ele
+  pode ser captado pelo microfone.
+- `Configurações → Avisos durante a atividade` liga/desliga os cartões e o som.
+- A distância do painel é interpolada entre fixes (até 1,5 s) para o número não congelar; o valor
+  gravado na atividade continua sendo o medido pelo GPS.
+
 ## Desempenho da câmera
 
 - O painel é desenhado num canvas offscreen a 5 Hz e apenas composto sobre o quadro: texto,

@@ -2,8 +2,16 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, SwitchCamera, Crop, Pause, Play, RefreshCw, Square } from "lucide-react";
 import { toast } from "sonner";
-import { drawCover, drawHud } from "@/components/pace/hud";
-import { TelemetryEngine, gpsStateFromAccuracy, type GpsState } from "@/lib/telemetry";
+import { drawCelebration, drawCover, drawHud } from "@/components/pace/hud";
+import {
+  TelemetryEngine,
+  formatDuration,
+  formatPace,
+  gpsStateFromAccuracy,
+  type GpsState,
+} from "@/lib/telemetry";
+import { AchievementTracker } from "@/lib/achievements";
+import { playBeep, playMilestone, playRecord, unlockAudio } from "@/lib/sfx";
 import { frameSize, loadSettings, type Settings } from "@/lib/settings";
 import { pickMime, saveActivity, updateActivity, type RecordPoint } from "@/lib/gallery";
 import { createPacer } from "@/lib/frame-pacer";
@@ -27,12 +35,20 @@ const FORMATS: Settings["format"][] = ["9:16", "16:9", "1:1"];
 // 30 fps keeps the canvas in step with captureStream(30) and avoids redrawing on 120 Hz screens.
 const FRAME_MS = 1000 / 30;
 const HUD_MS = 200;
+const CELEBRATION_MS = 2600;
 
 function CameraPage() {
   const nav = useNavigate();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engine = useRef(new TelemetryEngine());
+  const tracker = useRef(new AchievementTracker(loadSettings().unit));
+  const celebration = useRef<{
+    title: string;
+    detail: string;
+    tone: "accent" | "hot";
+    until: number;
+  } | null>(null);
   const live = useRef({
     gps: "searching" as GpsState,
     battery: null as number | null,
@@ -198,10 +214,39 @@ function CameraPage() {
     const frameDue = createPacer(FRAME_MS);
     const hudDue = createPacer(HUD_MS);
 
+    const celebrate = (snap: ReturnType<TelemetryEngine["snapshot"]>, now: number) => {
+      const st = settingsRef.current ?? s;
+      if (!st.celebrations || !live.current.recording || live.current.paused) return;
+      for (const ev of tracker.current.update(snap)) {
+        const u = st.unit;
+        const label = u === "mi" ? "MI" : "KM";
+        if (ev.kind === "milestone") {
+          celebration.current = {
+            title: `${ev.value} ${label}`,
+            detail: `PARABÉNS · ${formatDuration(ev.splitSec)} · ${formatPace(ev.pace, u)}/${u}`,
+            tone: "accent",
+            until: now + CELEBRATION_MS,
+          };
+          if (st.sound) playMilestone();
+        } else {
+          celebration.current = {
+            title: "RECORDE DE RITMO",
+            detail: `${formatPace(ev.pace, u)}/${u} · antes ${formatPace(ev.previousPace, u)}/${u}`,
+            tone: "hot",
+            until: now + CELEBRATION_MS,
+          };
+          if (st.sound) playRecord();
+        }
+      }
+    };
+
     const paintHud = () => {
+      const now = Date.now();
+      const snap = engine.current.snapshot(now, { interpolate: true });
+      celebrate(snap, now);
       hudCtx.clearRect(0, 0, w, h);
       drawHud(hudCtx, w, h, {
-        snap: engine.current.snapshot(Date.now()),
+        snap,
         gps: live.current.gps,
         battery: live.current.battery,
         recording: live.current.recording,
@@ -213,6 +258,19 @@ function CameraPage() {
     const paintFrame = () => {
       drawCover(ctx, video, w, h, mirror);
       ctx.drawImage(hud, 0, 0);
+      const c = celebration.current;
+      if (!c) return;
+      const left = c.until - Date.now();
+      if (left <= 0) {
+        celebration.current = null;
+        return;
+      }
+      drawCelebration(ctx, w, h, {
+        title: c.title,
+        detail: c.detail,
+        tone: c.tone,
+        progress: 1 - left / CELEBRATION_MS,
+      });
     };
 
     paintHud();
@@ -257,6 +315,10 @@ function CameraPage() {
     r.start(1000);
     recorder.current = r;
     startedAt.current = Date.now();
+    celebration.current = null;
+    tracker.current = new AchievementTracker(settingsRef.current?.unit ?? "km");
+    unlockAudio();
+    if (settingsRef.current?.sound) playBeep();
     engine.current = new TelemetryEngine();
     engine.current.start(Date.now());
     live.current.recording = true;
@@ -265,12 +327,14 @@ function CameraPage() {
   };
   const pause = () => {
     recorder.current?.pause();
+    if (settingsRef.current?.sound) playBeep();
     engine.current.pause(Date.now());
     live.current.paused = true;
     setState("paused");
   };
   const resume = () => {
     recorder.current?.resume();
+    if (settingsRef.current?.sound) playBeep(true);
     engine.current.start(Date.now());
     live.current.paused = false;
     setState("rec");
@@ -279,6 +343,8 @@ function CameraPage() {
     const r = recorder.current;
     if (!r) return;
     setState("saving");
+    celebration.current = null;
+    if (settingsRef.current?.sound) playBeep(true);
     const now = Date.now();
     engine.current.pause(now);
     const snap = engine.current.snapshot(now);
