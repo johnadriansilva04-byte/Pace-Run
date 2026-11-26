@@ -54,6 +54,19 @@ npm run build
 O service worker não é registrado em `npm run dev`. Para testar cache/offline, gere o build e sirva
 em HTTPS (ou `localhost`).
 
+## Deploy
+
+O build é Nitro; o alvo padrão do projeto é Cloudflare. Para publicar em outro alvo, escolha o preset
+no build:
+
+```sh
+NITRO_PRESET=vercel npm run build      # Vercel (saída em .vercel/output)
+NITRO_PRESET=node-server npm run build # Node (saída em .output/server/index.mjs)
+```
+
+`vercel.json` mantém `sw.js` e o manifest fora de cache longo — se o service worker ficar preso em CDN,
+uma nova versão do app não chega aos usuários instalados.
+
 ## Compatibilidade
 
 Prioridade: Android com Chrome, instalado pela landing page. iPhone/iPad instalam pelo Safari
