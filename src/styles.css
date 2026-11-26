@@ -129,7 +129,16 @@
 }
 
 @layer base {
-  body { font-family: var(--font-sans); }
+  html {
+    background-color: var(--color-background);
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    font-family: var(--font-sans);
+    min-height: 100dvh;
+    overscroll-behavior-y: contain;
+    -webkit-tap-highlight-color: transparent;
+  }
   h1, h2, h3, .font-display { font-family: var(--font-display); letter-spacing: -0.01em; }
 }
 @utility bg-hero { background: var(--gradient-hero); }
@@ -138,4 +147,12 @@
 @utility shadow-glow { box-shadow: var(--shadow-glow); }
 @utility speed-lines {
   background-image: repeating-linear-gradient(100deg, transparent 0 38px, oklch(1 0 0 / 4%) 38px 40px);
+}
+
+/* Standalone install: keep the shell edge-to-edge and clear of notches. */
+@utility pt-safe { padding-top: env(safe-area-inset-top); }
+@utility pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+@utility px-safe {
+  padding-left: max(0px, env(safe-area-inset-left));
+  padding-right: max(0px, env(safe-area-inset-right));
 }

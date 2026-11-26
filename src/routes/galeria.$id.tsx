@@ -8,8 +8,8 @@ import { formatDistance, formatDuration, formatPace, formatSpeed } from "@/lib/t
 
 export const Route = createFileRoute("/galeria/$id")({
   head: () => ({ meta: [
-    { title: "Atividade — PACE CAM" }, { name: "description", content: "Reproduza e compartilhe sua atividade." },
-    { property: "og:title", content: "Atividade — PACE CAM" }, { property: "og:description", content: "Vídeo com telemetria." },
+    { title: "Atividade — PACE RUN" }, { name: "description", content: "Reproduza e compartilhe sua atividade." },
+    { property: "og:title", content: "Atividade — PACE RUN" }, { property: "og:description", content: "Vídeo com telemetria." },
     { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" },
   ] }),
   component: Detail,
@@ -26,11 +26,11 @@ function Detail() {
     getVideo(id).then((b) => { if (b) { setBlob(b); setUrl(URL.createObjectURL(b)); } });
   }, [id]);
   if (!a) return <div className="min-h-screen bg-hero"><Header /><p className="p-8 text-muted-foreground">Carregando…</p></div>;
-  const name = `pacecam-${new Date(a.startedAt).toISOString().slice(0, 10)}.${extFor(a.mime)}`;
+  const name = `pacerun-${new Date(a.startedAt).toISOString().slice(0, 10)}.${extFor(a.mime)}`;
   const share = async () => {
     if (!blob) return;
     const f = new File([blob], name, { type: blob.type });
-    if (navigator.canShare?.({ files: [f] })) await navigator.share({ files: [f], title: "PACE CAM" }).catch(() => {});
+    if (navigator.canShare?.({ files: [f] })) await navigator.share({ files: [f], title: "PACE RUN" }).catch(() => {});
     else toast("Compartilhamento não suportado aqui. Use Salvar.");
   };
   const stats = [["Distância", `${formatDistance(a.distance)} km`], ["Duração", formatDuration(a.duration)], ["Pace médio", `${formatPace(a.avgPace)}/km`],

@@ -6,8 +6,8 @@ import { formatDistance, formatDuration, formatPace } from "@/lib/telemetry";
 
 export const Route = createFileRoute("/galeria/")({
   head: () => ({ meta: [
-    { title: "Minha galeria — PACE CAM" }, { name: "description", content: "Suas atividades gravadas." },
-    { property: "og:title", content: "Minha galeria — PACE CAM" }, { property: "og:description", content: "Vídeos com telemetria." },
+    { title: "Minha galeria — PACE RUN" }, { name: "description", content: "Suas atividades gravadas." },
+    { property: "og:title", content: "Minha galeria — PACE RUN" }, { property: "og:description", content: "Vídeos com telemetria." },
     { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" },
   ] }),
   component: Gallery,

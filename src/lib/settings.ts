@@ -6,23 +6,54 @@ export type Settings = {
   bitrate: number;
   recordAudio: boolean;
   activity: "corrida" | "caminhada" | "pedal";
-  show: { distance: boolean; pace: boolean; avgPace: boolean; speed: boolean; time: boolean; elevation: boolean; gain: boolean };
+  show: {
+    distance: boolean;
+    pace: boolean;
+    avgPace: boolean;
+    speed: boolean;
+    time: boolean;
+    elevation: boolean;
+    gain: boolean;
+  };
   cloudSync: boolean;
 };
 export const defaultSettings: Settings = {
-  unit: "km", format: "9:16", resolution: 1080, bitrate: 8_000_000, recordAudio: true, activity: "corrida",
-  show: { distance: true, pace: true, avgPace: true, speed: true, time: true, elevation: true, gain: true },
+  unit: "km",
+  format: "9:16",
+  resolution: 1080,
+  bitrate: 8_000_000,
+  recordAudio: true,
+  activity: "corrida",
+  show: {
+    distance: true,
+    pace: true,
+    avgPace: true,
+    speed: true,
+    time: true,
+    elevation: true,
+    gain: true,
+  },
   cloudSync: false,
 };
-const KEY = "pacecam.settings";
+const KEY = "pacerun.settings";
+const LEGACY_KEY = "pacecam.settings";
 export function loadSettings(): Settings {
-  try { const s = JSON.parse(localStorage.getItem(KEY) || "{}"); return { ...defaultSettings, ...s, show: { ...defaultSettings.show, ...(s.show || {}) } }; }
-  catch { return defaultSettings; }
+  try {
+    const s = JSON.parse(localStorage.getItem(KEY) ?? localStorage.getItem(LEGACY_KEY) ?? "{}");
+    return { ...defaultSettings, ...s, show: { ...defaultSettings.show, ...(s.show || {}) } };
+  } catch {
+    return defaultSettings;
+  }
 }
 export function useSettings() {
   const [s, setS] = useState<Settings>(defaultSettings);
   useEffect(() => setS(loadSettings()), []);
-  const update = (p: Partial<Settings>) => setS((prev) => { const n = { ...prev, ...p }; localStorage.setItem(KEY, JSON.stringify(n)); return n; });
+  const update = (p: Partial<Settings>) =>
+    setS((prev) => {
+      const n = { ...prev, ...p };
+      localStorage.setItem(KEY, JSON.stringify(n));
+      return n;
+    });
   return [s, update] as const;
 }
 export function frameSize(format: Settings["format"], res: number) {

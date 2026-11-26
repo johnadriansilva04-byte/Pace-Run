@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="PACE RUN">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#181c25" />
+      <stop offset="1" stop-color="#090b0f" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="115" fill="url(#bg)" />
+  <path d="M132 384a128 128 0 1 1 248 0" fill="none" stroke="#c6ff3d" stroke-width="44" stroke-linecap="round" opacity="0.14" />
+  <path d="M144 384a116 116 0 1 1 224 0" fill="none" stroke="#c6ff3d" stroke-width="44" stroke-linecap="round" />
+  <path d="M256 297 334 219" fill="none" stroke="#f4f6f0" stroke-width="32" stroke-linecap="round" />
+  <circle cx="256" cy="297" r="26" fill="#ff5a1f" />
+</svg>

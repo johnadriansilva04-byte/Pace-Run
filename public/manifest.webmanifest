@@ -1,0 +1,59 @@
+{
+  "id": "/",
+  "name": "PACE RUN — telemetria na câmera",
+  "short_name": "PACE RUN",
+  "description": "Grave corridas, caminhadas e pedais com painel de telemetria ao vivo gravado direto no vídeo.",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "start_url": "/inicio?fonte=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#111318",
+  "theme_color": "#111318",
+  "categories": ["health", "fitness", "sports", "video"],
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Iniciar atividade",
+      "short_name": "Iniciar",
+      "description": "Verificar câmera e GPS e abrir a câmera esportiva",
+      "url": "/preparar",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Minha galeria",
+      "short_name": "Galeria",
+      "description": "Vídeos gravados com telemetria",
+      "url": "/galeria",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ]
+}
