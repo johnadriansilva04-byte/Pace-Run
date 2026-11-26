@@ -73,6 +73,17 @@ NITRO_PRESET=node-server npm run build # Node (saída em .output/server/index.mj
 `vercel.json` mantém `sw.js` e o manifest fora de cache longo — se o service worker ficar preso em CDN,
 uma nova versão do app não chega aos usuários instalados.
 
+## Desempenho da câmera
+
+- O painel é desenhado num canvas offscreen a 5 Hz e apenas composto sobre o quadro: texto,
+  gradiente e formas saem do caminho do vídeo.
+- Frames limitados a 30 fps com `createPacer` — sem isso uma tela de 120 Hz redesenha o canvas
+  1080×1920 a 120 fps.
+- Gradientes e strings de fonte ficam em cache por tamanho; `shadowBlur` foi removido (é uma das
+  operações mais caras no canvas do Android).
+- O stream da câmera é pedido no tamanho do canvas: 720p pede 1280×720 em vez de 1080p.
+- Em aparelho fraco, o primeiro ajuste é `Configurações → 720p` (canvas 720×1280).
+
 ## Compatibilidade
 
 Prioridade: Android com Chrome, instalado pela landing page. iPhone/iPad instalam pelo Safari

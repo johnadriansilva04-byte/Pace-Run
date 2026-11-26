@@ -31,6 +31,27 @@ export type HudState = {
   blink: boolean;
 };
 
+// Gradients and font strings are expensive to build and are identical for every frame, so they
+// are cached per canvas size. shadowBlur is avoided on purpose: it is one of the slowest
+// operations on Android canvas, and the halo is faked with an extra translucent stroke.
+type HudCache = {
+  w: number;
+  h: number;
+  top?: CanvasGradient;
+  bottom?: CanvasGradient;
+  font?: string;
+};
+const caches = new WeakMap<CanvasRenderingContext2D, HudCache>();
+
+function cacheFor(ctx: CanvasRenderingContext2D, w: number, h: number): HudCache {
+  let c = caches.get(ctx);
+  if (!c || c.w !== w || c.h !== h) {
+    c = { w, h };
+    caches.set(ctx, c);
+  }
+  return c;
+}
+
 function gauge(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -62,20 +83,24 @@ function gauge(
     ctx.stroke();
   }
   const f = Math.max(0, Math.min(1, frac));
-  if (f > 0) {
-    ctx.lineWidth = lw;
-    ctx.strokeStyle = color;
-    ctx.shadowColor = color;
-    ctx.shadowBlur = lw * 1.2;
-    ctx.beginPath();
-    ctx.arc(x, y, r, a0, a0 + (a1 - a0) * f);
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-  }
+  if (f <= 0) return;
+  const end = a0 + (a1 - a0) * f;
+  ctx.strokeStyle = color;
+  ctx.globalAlpha = 0.16;
+  ctx.lineWidth = lw * 2.2;
+  ctx.beginPath();
+  ctx.arc(x, y, r, a0, end);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  ctx.lineWidth = lw;
+  ctx.beginPath();
+  ctx.arc(x, y, r, a0, end);
+  ctx.stroke();
 }
 
 function text(
   ctx: CanvasRenderingContext2D,
+  cache: HudCache,
   s: string,
   x: number,
   y: number,
@@ -84,7 +109,11 @@ function text(
   align: CanvasTextAlign = "center",
   weight = 700,
 ) {
-  ctx.font = `${weight} ${size}px ${FONT}`;
+  const font = `${weight} ${Math.round(size)}px ${FONT}`;
+  if (cache.font !== font) {
+    ctx.font = font;
+    cache.font = font;
+  }
   ctx.fillStyle = color;
   ctx.textAlign = align;
   ctx.textBaseline = "alphabetic";
@@ -96,12 +125,16 @@ export function drawHud(ctx: CanvasRenderingContext2D, w: number, h: number, st:
   const u = s.unit;
   const k = Math.min(w, h) / 1080; // scale unit
   const pad = 40 * k;
+  const cache = cacheFor(ctx, w, h);
 
   // top scrim
-  let g = ctx.createLinearGradient(0, 0, 0, 200 * k);
-  g.addColorStop(0, "rgba(0,0,0,0.55)");
-  g.addColorStop(1, "rgba(0,0,0,0)");
-  ctx.fillStyle = g;
+  if (!cache.top) {
+    const g = ctx.createLinearGradient(0, 0, 0, 200 * k);
+    g.addColorStop(0, "rgba(0,0,0,0.55)");
+    g.addColorStop(1, "rgba(0,0,0,0)");
+    cache.top = g;
+  }
+  ctx.fillStyle = cache.top;
   ctx.fillRect(0, 0, w, 200 * k);
 
   // REC + time
@@ -111,10 +144,10 @@ export function drawHud(ctx: CanvasRenderingContext2D, w: number, h: number, st:
     ctx.beginPath();
     ctx.arc(pad + 16 * k, recY - 14 * k, 14 * k, 0, Math.PI * 2);
     ctx.fill();
-    text(ctx, st.paused ? "PAUSA" : "REC", pad + 42 * k, recY, 34 * k, C.text, "left");
-  } else text(ctx, "PRONTO", pad, recY, 34 * k, C.accent, "left");
+    text(ctx, cache, st.paused ? "PAUSA" : "REC", pad + 42 * k, recY, 34 * k, C.text, "left");
+  } else text(ctx, cache, "PRONTO", pad, recY, 34 * k, C.accent, "left");
   if (s.show.time)
-    text(ctx, formatDuration(snap.elapsed), pad, recY + 62 * k, 60 * k, C.text, "left");
+    text(ctx, cache, formatDuration(snap.elapsed), pad, recY + 62 * k, 60 * k, C.text, "left");
 
   // GPS bars + battery (top-right)
   const gx = w - pad;
@@ -124,7 +157,7 @@ export function drawHud(ctx: CanvasRenderingContext2D, w: number, h: number, st:
     const bh = (12 + i * 9) * k;
     ctx.fillRect(gx - (4 - i) * 16 * k, recY - bh, 10 * k, bh);
   }
-  text(ctx, "GPS", gx - 76 * k, recY, 26 * k, C.dim, "right", 600);
+  text(ctx, cache, "GPS", gx - 76 * k, recY, 26 * k, C.dim, "right", 600);
   if (st.battery != null) {
     const bw = 64 * k,
       bh = 28 * k,
@@ -139,6 +172,7 @@ export function drawHud(ctx: CanvasRenderingContext2D, w: number, h: number, st:
     ctx.fillRect(bx + 4 * k, by + 4 * k, (bw - 8 * k) * st.battery, bh - 8 * k);
     text(
       ctx,
+      cache,
       `${Math.round(st.battery * 100)}%`,
       bx - 12 * k,
       by + bh - 4 * k,
@@ -152,11 +186,14 @@ export function drawHud(ctx: CanvasRenderingContext2D, w: number, h: number, st:
   // bottom dashboard
   const panelH = 400 * k;
   const top = h - panelH;
-  g = ctx.createLinearGradient(0, top - 80 * k, 0, h);
-  g.addColorStop(0, "rgba(0,0,0,0)");
-  g.addColorStop(0.45, "rgba(0,0,0,0.55)");
-  g.addColorStop(1, "rgba(0,0,0,0.8)");
-  ctx.fillStyle = g;
+  if (!cache.bottom) {
+    const g = ctx.createLinearGradient(0, top - 80 * k, 0, h);
+    g.addColorStop(0, "rgba(0,0,0,0)");
+    g.addColorStop(0.45, "rgba(0,0,0,0.55)");
+    g.addColorStop(1, "rgba(0,0,0,0.8)");
+    cache.bottom = g;
+  }
+  ctx.fillStyle = cache.bottom;
   ctx.fillRect(0, top - 80 * k, w, panelH + 80 * k);
 
   const cy = top + 190 * k;
@@ -169,24 +206,35 @@ export function drawHud(ctx: CanvasRenderingContext2D, w: number, h: number, st:
   if (s.show.speed) {
     const max = s.activity === "pedal" ? 50 : 25;
     gauge(ctx, left, cy, r, ((snap.speed ?? 0) * 3.6) / max, C.hot, 16 * k);
-    text(ctx, formatSpeed(snap.speed, u), left, cy + 18 * k, 64 * k, C.text);
-    text(ctx, u === "mi" ? "MPH" : "KM/H", left, cy + 58 * k, 24 * k, C.dim, "center", 600);
+    text(ctx, cache, formatSpeed(snap.speed, u), left, cy + 18 * k, 64 * k, C.text);
+    text(ctx, cache, u === "mi" ? "MPH" : "KM/H", left, cy + 58 * k, 24 * k, C.dim, "center", 600);
   }
   // right gauge: distance (progress to next unit)
   if (s.show.distance) {
     const unitM = u === "mi" ? 1609.344 : 1000;
     gauge(ctx, right, cy, r, (snap.distance % unitM) / unitM, C.accent, 16 * k);
-    text(ctx, formatDistance(snap.distance, u), right, cy + 18 * k, 64 * k, C.text);
-    text(ctx, u.toUpperCase(), right, cy + 58 * k, 24 * k, C.dim, "center", 600);
+    text(ctx, cache, formatDistance(snap.distance, u), right, cy + 18 * k, 64 * k, C.text);
+    text(ctx, cache, u.toUpperCase(), right, cy + 58 * k, 24 * k, C.dim, "center", 600);
   }
   // center: the hero number, PACE
   if (s.show.pace) {
-    text(ctx, "PACE", w / 2, cy - 96 * k, 26 * k, C.accent, "center", 700);
-    ctx.shadowColor = "rgba(198,255,61,0.55)";
-    ctx.shadowBlur = 30 * k;
-    text(ctx, formatPace(snap.pace, u), w / 2, cy + 30 * k, 150 * k, C.text, "center", 700);
-    ctx.shadowBlur = 0;
-    text(ctx, u === "mi" ? "MIN/MI" : "MIN/KM", w / 2, cy + 70 * k, 24 * k, C.dim, "center", 600);
+    text(ctx, cache, "PACE", w / 2, cy - 96 * k, 26 * k, C.accent, "center", 700);
+    const pace = formatPace(snap.pace, u);
+    ctx.globalAlpha = 0.18;
+    text(ctx, cache, pace, w / 2, cy + 30 * k, 156 * k, C.accent, "center", 700);
+    ctx.globalAlpha = 1;
+    text(ctx, cache, pace, w / 2, cy + 30 * k, 150 * k, C.text, "center", 700);
+    text(
+      ctx,
+      cache,
+      u === "mi" ? "MIN/MI" : "MIN/KM",
+      w / 2,
+      cy + 70 * k,
+      24 * k,
+      C.dim,
+      "center",
+      600,
+    );
   }
   // bottom strip
   const items: [string, string][] = [];
@@ -198,8 +246,8 @@ export function drawHud(ctx: CanvasRenderingContext2D, w: number, h: number, st:
   const cw = span / Math.max(1, items.length);
   items.forEach(([label, val], i) => {
     const x = w / 2 - span / 2 + cw * i + cw / 2;
-    text(ctx, val, x, sy - 4 * k, 40 * k, C.text);
-    text(ctx, label, x, sy - 50 * k, 20 * k, C.dim, "center", 600);
+    text(ctx, cache, val, x, sy - 4 * k, 40 * k, C.text);
+    text(ctx, cache, label, x, sy - 50 * k, 20 * k, C.dim, "center", 600);
   });
 }
 

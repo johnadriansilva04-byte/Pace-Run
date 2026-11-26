@@ -6,6 +6,7 @@ import { drawCover, drawHud } from "@/components/pace/hud";
 import { TelemetryEngine, gpsStateFromAccuracy, type GpsState } from "@/lib/telemetry";
 import { frameSize, loadSettings, type Settings } from "@/lib/settings";
 import { pickMime, saveActivity, updateActivity, type RecordPoint } from "@/lib/gallery";
+import { createPacer } from "@/lib/frame-pacer";
 import { syncActivity } from "@/lib/supabase";
 
 export const Route = createFileRoute("/camera")({
@@ -23,6 +24,9 @@ export const Route = createFileRoute("/camera")({
 });
 
 const FORMATS: Settings["format"][] = ["9:16", "16:9", "1:1"];
+// 30 fps keeps the canvas in step with captureStream(30) and avoids redrawing on 120 Hz screens.
+const FRAME_MS = 1000 / 30;
+const HUD_MS = 200;
 
 function CameraPage() {
   const nav = useNavigate();
@@ -126,12 +130,16 @@ function CameraPage() {
       return;
     }
     setCamErr("");
+    const s = settingsRef.current ?? loadSettings();
+    const { w, h } = frameSize(format, s.resolution);
+    // Ask only for what the canvas can actually show: a 720p dashboard does not need a 1080p
+    // sensor stream, and oversized capture is the main source of dropped frames on phones.
     media
       .getUserMedia({
         video: {
           facingMode: facing,
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
+          width: { ideal: Math.max(w, h) },
+          height: { ideal: Math.min(w, h) },
           frameRate: { ideal: 30 },
         },
       })
@@ -161,30 +169,59 @@ function CameraPage() {
     return () => {
       cancelled = true;
     };
-  }, [facing, attempt]);
+  }, [facing, attempt, format]);
   useEffect(() => () => videoStream.current?.getTracks().forEach((t) => t.stop()), []);
 
-  // render loop: camera frame + dashboard onto the canvas that is also recorded
+  // Render pipeline: the camera frame and the dashboard are composited on separate canvases.
+  // The dashboard changes at most a few times per second, so it is painted to an offscreen canvas
+  // at HUD_MS and only blitted per frame — that keeps text/gradient work out of the video path.
   useEffect(() => {
-    const c = canvasRef.current!;
-    const ctx = c.getContext("2d")!;
+    const canvas = canvasRef.current;
+    const video = videoRef.current;
+    if (!canvas || !video) return;
+    const ctx = canvas.getContext("2d", { alpha: false, desynchronized: true });
+    if (!ctx) return;
     const s = settingsRef.current ?? loadSettings();
     const { w, h } = frameSize(format, s.resolution);
-    c.width = w;
-    c.height = h;
-    let raf = 0;
-    const loop = () => {
-      const st = settingsRef.current ?? s;
-      drawCover(ctx, videoRef.current!, w, h, facing === "user");
-      drawHud(ctx, w, h, {
+    canvas.width = w;
+    canvas.height = h;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "low";
+
+    const hud = document.createElement("canvas");
+    hud.width = w;
+    hud.height = h;
+    const hudCtx = hud.getContext("2d");
+    if (!hudCtx) return;
+
+    const mirror = facing === "user";
+    const frameDue = createPacer(FRAME_MS);
+    const hudDue = createPacer(HUD_MS);
+
+    const paintHud = () => {
+      hudCtx.clearRect(0, 0, w, h);
+      drawHud(hudCtx, w, h, {
         snap: engine.current.snapshot(Date.now()),
         gps: live.current.gps,
         battery: live.current.battery,
         recording: live.current.recording,
         paused: live.current.paused,
-        settings: st,
+        settings: settingsRef.current ?? s,
         blink: Math.floor(Date.now() / 500) % 2 === 0,
       });
+    };
+    const paintFrame = () => {
+      drawCover(ctx, video, w, h, mirror);
+      ctx.drawImage(hud, 0, 0);
+    };
+
+    paintHud();
+    paintFrame();
+
+    let raf = 0;
+    const loop = (now: number) => {
+      if (hudDue(now)) paintHud();
+      if (frameDue(now)) paintFrame();
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
@@ -297,7 +334,13 @@ function CameraPage() {
     "grid h-12 w-12 place-items-center rounded-full bg-glass text-foreground backdrop-blur disabled:opacity-30";
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-background">
-      <video ref={videoRef} playsInline muted className="hidden" />
+      {/* Kept visible-but-invisible: a display:none video can stop producing frames. */}
+      <video
+        ref={videoRef}
+        playsInline
+        muted
+        className="pointer-events-none absolute h-px w-px opacity-0"
+      />
       <canvas ref={canvasRef} className="h-full w-full object-contain" />
       {camErr && (
         <div className="absolute inset-x-6 top-1/3 space-y-3 rounded-xl border border-border bg-card p-4 text-center">
