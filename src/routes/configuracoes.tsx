@@ -1,10 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { Download, ShieldCheck, Smartphone } from "lucide-react";
 import { Header } from "@/components/pace/Header";
 import { InstallButton } from "@/components/pace/Install";
 import { useInstall } from "@/lib/pwa";
 import { useSettings, type Settings } from "@/lib/settings";
-import { supabase } from "@/lib/supabase";
+import { cloudStatus, type CloudStatus } from "@/lib/supabase";
 
 export const Route = createFileRoute("/configuracoes")({
   head: () => ({
@@ -33,6 +34,22 @@ const labels: Record<keyof Settings["show"], string> = {
 function Config() {
   const [s, up] = useSettings();
   const { installed } = useInstall();
+  const [cloud, setCloud] = useState<CloudStatus | null>(null);
+  useEffect(() => {
+    let alive = true;
+    cloudStatus().then((c) => alive && setCloud(c));
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const cloudNote =
+    cloud === null
+      ? "Verificando a nuvem…"
+      : cloud === "ready"
+        ? "Nuvem pronta: a atividade sobe com login anônimo."
+        : cloud === "login"
+          ? "Nuvem configurada, mas o projeto Supabase está sem login anônimo (Authentication → Providers → Anonymous). Enquanto isso, tudo fica no aparelho."
+          : "Nuvem não configurada (defina VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY).";
   const opt = "rounded-lg border px-3 py-2 text-sm";
   const on = (b: boolean) =>
     `${opt} ${b ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`;
@@ -155,17 +172,14 @@ function Config() {
             </button>
             <button
               className={on(s.cloudSync)}
-              disabled={!supabase}
+              disabled={cloud !== "ready"}
               onClick={() => up({ cloudSync: !s.cloudSync })}
             >
               Sincronizar com a nuvem
             </button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Vídeos ficam salvos no aparelho.{" "}
-            {supabase
-              ? "Nuvem configurada."
-              : "Nuvem não configurada (defina as variáveis do Supabase)."}
+            Vídeos ficam salvos no aparelho. {cloudNote}
           </p>
           <p className="flex items-start gap-2 text-xs text-muted-foreground">
             <Download className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />O formato do

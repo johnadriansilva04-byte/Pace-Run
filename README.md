@@ -76,6 +76,11 @@ Produção: <https://pace-run-tan.vercel.app> — projeto Vercel `pace-run` (pre
 Variáveis de build na Vercel: `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`
 (projeto Supabase `pace-run`, tabelas de `supabase-setup/schema.sql`).
 
+A sincronização exige sessão (`auth.uid()` no RLS). O app entra com **login anônimo**; enquanto o
+projeto estiver com "Anonymous sign-ins" desligado em Authentication → Providers, `/configuracoes`
+desabilita o botão e explica o motivo (`cloudStatus()` consulta `/auth/v1/settings` em tempo de
+execução, então a tela nunca promete o que o projeto não permite).
+
 O build é Nitro; o alvo padrão do projeto é Cloudflare. Para publicar em outro alvo, escolha o preset
 no build:
 

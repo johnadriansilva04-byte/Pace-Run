@@ -5,14 +5,42 @@ const url = import.meta.env["VITE_SUPABASE_URL"] as string | undefined;
 const key = import.meta.env["VITE_SUPABASE_ANON_KEY"] as string | undefined;
 export const supabase: SupabaseClient | null = url && key ? createClient(url, key) : null;
 
+/** `off`: sem variáveis; `login`: projeto sem login anônimo; `ready`: dá para sincronizar. */
+export type CloudStatus = "off" | "login" | "ready";
+
+/** O RLS exige `auth.uid()`, então sem sessão nenhuma linha é aceita. */
+export function anonymousEnabled(settings: unknown): boolean {
+  const external = (settings as { external?: Record<string, unknown> } | null)?.external;
+  return external?.["anonymous_users"] === true;
+}
+
+export async function cloudStatus(): Promise<CloudStatus> {
+  if (!supabase || !url || !key) return "off";
+  try {
+    const res = await fetch(`${url}/auth/v1/settings`, { headers: { apikey: key } });
+    if (!res.ok) return "login";
+    return anonymousEnabled(await res.json()) ? "ready" : "login";
+  } catch {
+    return "login";
+  }
+}
+
+async function ensureSession(): Promise<string | null> {
+  if (!supabase) return null;
+  const { data } = await supabase.auth.getUser();
+  if (data.user) return data.user.id;
+  const { data: anon, error } = await supabase.auth.signInAnonymously();
+  return error ? null : (anon.user?.id ?? null);
+}
+
 export async function syncActivity(a: Activity): Promise<boolean> {
   if (!supabase) return false;
-  const { data: u } = await supabase.auth.getUser();
-  if (!u.user) return false;
+  const userId = await ensureSession();
+  if (!userId) return false;
   const { data, error } = await supabase
     .from("activities")
     .insert({
-      user_id: u.user.id,
+      user_id: userId,
       activity_type: a.type,
       distance: a.distance,
       duration: a.duration,
