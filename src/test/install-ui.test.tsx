@@ -17,7 +17,7 @@ describe("install UI", () => {
   it("explains the manual install path when the browser has no prompt", () => {
     render(<InstallSection />);
 
-    expect(screen.getByText("INSTALAÇÃO MANUAL")).toBeInTheDocument();
+    expect(screen.getByText("INSTALAÇÃO PELO NAVEGADOR")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: /INSTALAR PACE RUN/ }).length).toBeGreaterThan(0);
     expect(screen.getByText(/A instalação não concede permissões/i)).toBeInTheDocument();
     expect(screen.getByText(/não esta página de instalação/i)).toBeInTheDocument();

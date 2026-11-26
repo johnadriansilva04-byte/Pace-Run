@@ -84,7 +84,7 @@ function StatusPill({ installed, canPrompt }: { installed: boolean; canPrompt: b
         ? "INSTALADO NESTE DISPOSITIVO"
         : canPrompt
           ? "PRONTO PARA INSTALAR"
-          : "INSTALAÇÃO MANUAL"}
+          : "INSTALAÇÃO PELO NAVEGADOR"}
     </span>
   );
 }

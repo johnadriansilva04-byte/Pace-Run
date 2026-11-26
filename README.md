@@ -56,6 +56,12 @@ em HTTPS (ou `localhost`).
 
 ## Deploy
 
+Produção: <https://pace-run-tan.vercel.app> — projeto Vercel `pace-run` (preset
+`tanstack-start-lovable`), ligado a este repositório: cada push em `main` publica.
+Variáveis de build na Vercel: `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`
+(projeto Supabase `pace-run`, tabelas de `supabase-setup/schema.sql`).
+
+
 O build é Nitro; o alvo padrão do projeto é Cloudflare. Para publicar em outro alvo, escolha o preset
 no build:
 
